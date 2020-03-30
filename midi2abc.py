@@ -19,16 +19,18 @@
 #    New in version 0.2:
 #    better handling of accidentals in keys with many flats and sharps
 
-from midi.MidiOutStream import MidiOutStream
-from midi.MidiInFile import MidiInFile
-from fractions import Fraction
-import os
-import os.path
-import sys
 import getopt
 import math
-from simple_abc_parser import get_best_key_for_midi_notes, get_accidentals_for_key
+import os
+import sys
 from io import StringIO
+from fractions import Fraction
+
+from simple_abc_parser import get_best_key_for_midi_notes, get_accidentals_for_key
+
+from miditk.smf.api import BaseMidiEventHandler
+from miditk.smf.reader import MidiFileReader
+
 
 num_quarter_notes_per_bar = 3
 bars_per_line = 4
@@ -68,9 +70,9 @@ class Note:
         self.length = time_to_note_length(self.end - self.start)
 
 
-class MidiHandler(MidiOutStream):
+class MidiHandler(BaseMidiEventHandler):
     def __init__(self, first_channel, last_channel):
-        MidiOutStream.__init__(self)
+        super(MidiHandler, self).__init__()
         self.division = None
         self.first_channel = first_channel
         self.last_channel = last_channel
@@ -218,7 +220,7 @@ def midi_to_abc(filename=None, notes=None, key=None, metre=Fraction(3, 4), defau
         # read midi notes
         handler1 = MidiHandler(0, 15)  # channels 0-15
         # handler1 = MidiHandler(0, 0)  # channels 0-15
-        MidiInFile(handler1, filename).read()
+        MidiInFile(filename, handler=handler1).read()
         notes = handler1.notes
     elif not filename and not notes:
         raise Exception(

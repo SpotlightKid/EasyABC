@@ -7,7 +7,7 @@ import os.path
 if sys.version_info.major > 2:
     basestring = str
 
-version = '1.3.7.4'
+version = '1.3.7.7'
 description = "EasyABC"
 long_description = "Nils Liberg's EasyABC 1.3.7 (Seymour Shlien)"
 url = 'http://www.nilsliberg.se/ksp/easyabc/'

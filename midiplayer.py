@@ -1,14 +1,5 @@
-from __future__ import unicode_literals
-import re
-import os
-import io
-import os.path
-import wx
-import wx.media
-import time
-import sys
-PY3 = sys.version_info.major > 2
-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 class EventHook(object):
     def __init__(self):
@@ -27,7 +18,7 @@ class EventHook(object):
             handler(*args, **keywargs)
 
     def clearObjectHandlers(self, obj):
-        self.__handlers = [h for h in self.__handlers if getattr(h, 'im_self', False) != obj] 
+        self.__handlers = [h for h in self.__handlers if getattr(h, 'im_self', False) != obj]
 
 
 class MidiPlayer(object):

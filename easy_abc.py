@@ -1,5 +1,5 @@
-#!/usr/bin/python2.7
-#
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 program_name = 'EasyABC 1.3.7.8 2018-09-24'
 
@@ -20,7 +20,7 @@ program_name = 'EasyABC 1.3.7.8 2018-09-24'
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# V1.3.7.8 
+# V1.3.7.8
 # - made BPM slider sticky for looping [EPO]
 # - fixed bug where tempo reset after loop [EPO]
 # - fixed crash when trying to Select() empty combobox in MainFrame/@current_page_index.setter [EPO]
@@ -39,64 +39,45 @@ program_name = 'EasyABC 1.3.7.8 2018-09-24'
 #     print('faulthandler not installed. Try: pip install faulthandler')
 #     pass
 
-import sys
-PY3 = sys.version_info.major > 2
 
-abcm2ps_default_encoding = 'utf-8'  ## 'latin-1'
 import codecs
-utf8_byte_order_mark = codecs.BOM_UTF8  # chr(0xef) + chr(0xbb) + chr(0xbf) #'\xef\xbb\xbf'
-
-if PY3:
-    unichr = chr
-    xrange = range
-    def unicode(s):
-        return s
-    max_int = sys.maxsize
-    basestring = str
-else:
-    max_int = sys.maxint
-
-import os, os.path
-import wx
-
-if os.getenv('EASYABCDIR'):
-    cwd = os.getenv('EASYABCDIR')
-else:
-    cwd = os.getcwd()
-    if os.path.isabs(sys.argv[0]):
-        cwd = os.path.dirname(sys.argv[0])
-        # 1.3.6.3 [JWDJ] 2015-04-27 On Windows replace forward slashes with backslashes
-        if wx.Platform == "__WXMSW__":
-            cwd = cwd.replace('/', '\\')
-sys.path.append(cwd)
-
-import re
-import subprocess
 import hashlib
-
-if PY3:
-    from urllib.parse import urlparse, urlencode, urlunparse, parse_qsl, quote # py3
-    from urllib.request import urlopen, Request, urlretrieve
-    from urllib.error import HTTPError, URLError
-    import pickle as pickle # py3
-else:
-    from urlparse import urlparse, urlunparse, parse_qsl # py2
-    from urllib import urlencode, urlretrieve, quote
-    from urllib2 import urlopen, Request, HTTPError, URLError
-    import cPickle as pickle # py2
-
-import threading
-import shutil
+import itertools
+import os
 import platform
-import webbrowser
+import re
+import shutil
+import subprocess
+import sys
+import threading
 import time
 import traceback
-# import xml.etree.cElementTree as ET  # 1.3.7.4 [JWdJ] 2016-06-30
+import webbrowser
 import zipfile
+
 from datetime import datetime
 from collections import deque, namedtuple, defaultdict
+from fractions import Fraction
 from io import StringIO
-from wx.lib.scrolledpanel import ScrolledPanel
+
+PY3 = sys.version_info.major > 2
+
+if PY3:
+    import pickle as pickle
+
+    from queue import Queue
+    from urllib.parse import urlparse, urlencode, urlunparse, parse_qsl, quote
+    from urllib.request import urlopen, Request, urlretrieve
+    from urllib.error import HTTPError, URLError
+else:
+    import cPickle as pickle
+
+    from Queue import Queue
+    from urlparse import urlparse, urlunparse, parse_qsl
+    from urllib import urlencode, urlretrieve, quote
+    from urllib2 import urlopen, Request, HTTPError, URLError
+
+import wx
 import wx.html
 import wx.stc as stc
 import wx.lib.agw.aui as aui
@@ -106,34 +87,44 @@ import wx.media
 import wx.lib.platebtn as platebtn
 import wx.lib.mixins.listctrl as listmix
 import wx.lib.agw.hypertreelist as htl
-from wx.lib.embeddedimage import PyEmbeddedImage
-# from wx.lib.expando import ExpandoTextCtrl, EVT_ETC_LAYOUT_NEEDED # 1.3.7.3 [JWdJ] 2016-04-09
+
 from wx import GetTranslation as _
-from wxhelper import *
-# from midiplayer import *
-from fluidsynthplayer import *
-from wxmediaplayer import *
-from xml2abc_interface import xml_to_abc, abc_to_xml
-from midi2abc import midi_to_abc, Note, duration2abc
-# from midi_meta_data import midi_to_meta_data # 1.3.6.3 [JWdJ] 2015-04-22
-from generalmidi import general_midi_instruments
-# from ps_parser import Abcm2psOutputParser # 1.3.6.3 [JWdJ] 2015-04-22
-from abc_styler import ABCStyler
+from wx.lib.embeddedimage import PyEmbeddedImage
+from wx.lib.scrolledpanel import ScrolledPanel
+# from wx.lib.expando import ExpandoTextCtrl, EVT_ETC_LAYOUT_NEEDED # 1.3.7.3 [JWdJ] 2016-04-09
+
+if os.getenv('EASYABCDIR'):
+    cwd = os.getenv('EASYABCDIR')
+else:
+    cwd = os.getcwd()
+    if os.path.isabs(sys.argv[0]):
+        cwd = os.path.dirname(sys.argv[0])
+        # 1.3.6.3 [JWDJ] 2015-04-27 On Windows replace forward slashes with backslashes
+        if wx.platform == "__WXMSW__":
+            cwd = cwd.replace('/', '\\')
+
+sys.path.append(cwd)
+
 from abc_character_encoding import decode_abc, abc_text_to_unicode
 # from abc_character_encoding import encode_abc # 1.3.7.3 [JWdJ] 2016-04-09
 from abc_search import abc_matches_iter
-from fractions import Fraction
+from abc_styler import ABCStyler
+from abc_tune import AbcTune
+from aligner import (align_lines, extract_incipit, bar_sep, bar_sep_without_space, get_bar_length,
+                     bar_and_voice_overlay_sep)
+from fluidsynthmidiplayer import FluidSynthMidiPlayer
+from generalmidi import general_midi_instruments
+from midi2abc import midi_to_abc, Note, duration2abc
+# from midi_meta_data import midi_to_meta_data # 1.3.6.3 [JWdJ] 2015-04-22
+from midiplayer import DummyMidiPlayer
 from music_score_panel import MusicScorePanel
+# from ps_parser import Abcm2psOutputParser # 1.3.6.3 [JWdJ] 2015-04-22
 from svgrenderer import SvgRenderer
-import itertools
-from aligner import align_lines, extract_incipit, bar_sep, bar_sep_without_space, get_bar_length, bar_and_voice_overlay_sep
-##from midi_processing import humanize_midi
-if PY3:
-    from queue import Queue # 1.3.6.2 [JWdJ] 2015-02
-else:
-    from Queue import Queue # 1.3.6.2 [JWdJ] 2015-02
+from wxhelper import (append_menu_item, append_submenu, create_menu, create_menu_bar,
+                     delete_menuitem, wx_bitmap, wx_colour, wx_cursor)
+from wxmediaplayer import WxMediaPlayer
+from xml2abc_interface import xml_to_abc, abc_to_xml
 
-application_running = True
 
 if wx.Platform == "__WXMSW__":
     import win32api
@@ -152,17 +143,49 @@ except ImportError:
     except ImportError:
         sys.stderr.write('Warning: pygame/pypm module not found. Recording midi will not work')
 
+if PY3:
+    basestring = str
+    max_int = sys.maxsize
+    unichr = chr
+    unicode = str
+    xrange = range
+else:
+    max_int = sys.maxint
+
+
+# global variables
+abcm2ps_default_encoding = 'utf-8'  ## 'latin-1'
+utf8_byte_order_mark = codecs.BOM_UTF8  # chr(0xef) + chr(0xbb) + chr(0xbf) #'\xef\xbb\xbf'
+application_running = True
+all_notes = "C,, D,, E,, F,, G,, A,, B,, C, D, E, F, G, A, B, C D E F G A B c d e f g a b c' d' e' f' g' a' b' c'' d'' e'' f'' g'' a'' b''".split()
+doremi_prefixes = 'DRMFSLTdrmfslt' # 'd' corresponds to "do", 'r' to "re" and so on, DO vs. do is like C vs. c in ABC
+doremi_suffixes = 'oeiaoaioOEIAOAIOlLhH'
+execmessages = u''
+visible_abc_code = u''
+line_end_re = re.compile('\r\n|\r|\n')
+tune_index_re = re.compile(r'^X:\s*(\d+)')
+
+# namedtuple classes
+Tune = namedtuple('Tune', 'xnum title rythm offset_start offset_end abc header num_header_lines')
+MidiNote = namedtuple('MidiNote', 'start stop indices page svg_row')
+
+
+class AbortException(Exception):
+    pass
+
+
+class Abcm2psException(Exception):
+    pass
+
+
+class NWCConversionException(Exception):
+    pass
+
+
 def str2fraction(s):
     parts = [int(x.strip()) for x in s.split('/')]
     return Fraction(parts[0], parts[1])
 
-Tune = namedtuple('Tune', 'xnum title rythm offset_start offset_end abc header num_header_lines')
-MidiNote = namedtuple('MidiNote', 'start stop indices page svg_row')
-class AbortException(Exception): pass
-class Abcm2psException(Exception): pass
-class NWCConversionException(Exception): pass
-
-from abc_tune import AbcTune
 
 def ensure_file_name_does_not_exist(file_path):
     if not os.path.exists(file_path):
@@ -178,6 +201,7 @@ def ensure_file_name_does_not_exist(file_path):
         file_exists = os.path.exists(file_path)
     return file_path
 
+
 def generate_temp_file_name(path, ending, replace_ending=None):
     i = 0
     file_exists = True
@@ -189,6 +213,7 @@ def generate_temp_file_name(path, ending, replace_ending=None):
             file_exists = os.path.exists(f)
         i += 1
     return file_name
+
 
 # 1.3.6.3 [JWdJ] 2015-04-22
 class MidiTune(object):
@@ -203,6 +228,7 @@ class MidiTune(object):
             if os.path.isfile(self.midi_file):
                 os.remove(self.midi_file)
             self.midi_file = None
+
 
 # 1.3.6.2 [JWdJ]
 class SvgTune(object):
@@ -292,18 +318,6 @@ class AbcTunes(object):
             tune.cleanup()
         del self.__tunes[tune_id]
 
-
-
-#global variables
-all_notes = "C,, D,, E,, F,, G,, A,, B,, C, D, E, F, G, A, B, C D E F G A B c d e f g a b c' d' e' f' g' a' b' c'' d'' e'' f'' g'' a'' b''".split()
-doremi_prefixes = 'DRMFSLTdrmfslt' # 'd' corresponds to "do", 'r' to "re" and so on, DO vs. do is like C vs. c in ABC
-doremi_suffixes = 'oeiaoaioOEIAOAIOlLhH'
-
-execmessages = u''
-visible_abc_code = u''
-
-line_end_re = re.compile('\r\n|\r|\n')
-tune_index_re = re.compile(r'^X:\s*(\d+)')
 
 def text_to_lines(text):
     return line_end_re.split(text)
@@ -466,6 +480,7 @@ def upload_tune(tune, author):
     url = url.split('?')[0]  # remove the part after the first '?'
     return url
 
+
 def launch_file(filepath):
     ''' open the given document using its associated program '''
     if wx.Platform == "__WXMSW__":
@@ -475,6 +490,7 @@ def launch_file(filepath):
     elif os.name == 'posix':
         subprocess.call(('xdg-open', filepath))
     return True
+
 
 def remove_non_note_fragments(abc, exclude_grace_notes=False):
     ''' remove parts of the ABC which is not notes or bar symbols by replacing them by spaces (in order to preserve offsets) '''
@@ -495,6 +511,7 @@ def remove_non_note_fragments(abc, exclude_grace_notes=False):
         abc = re.sub(r'\{.*?\}', repl_by_spaces, abc)  # remove grace notes
     return abc
 
+
 def get_notes_from_abc(abc, exclude_grace_notes=False):
     ''' returns a list of (start-offset, end-offset, abc-note-text) tuples for ABC notes/rests '''
 
@@ -504,6 +521,7 @@ def get_notes_from_abc(abc, exclude_grace_notes=False):
     # 1.3.6.3 [JWDJ] 2015-3 made regex case sensitive again, because after typing Z and <space> a bar did not appear
     return [(note.start(0), note.end(0), note.group(0)) for note in
             re.finditer(r"([_=^]?[[A-Ga-gz](,+|'+)?\d{0,2}(/\d{1,2}|/+)?)[><-]?", abc)]
+
 
 def copy_bar_symbols_from_first_voice(abc):
     # normalize line endings (necessary for ^ in regexp) and extract the header and the two voices
@@ -534,6 +552,7 @@ def copy_bar_symbols_from_first_voice(abc):
     abc = header + 'V:1' + V1 + 'V:2\nI:repbra 0\n' + V2.lstrip()
     abc = abc.replace('\n', os.linesep)
     return abc
+
 
 def process_MCM(abc):
     """ Processes sticky rhythm feature of mcmusiceditor http://www.mcmusiceditor.com/download/sticky-rhythm.pdf
@@ -568,7 +587,6 @@ def process_MCM(abc):
     return abc
 
 
-
 def get_hash_code(*args):
     hash = hashlib.md5()
     for arg in args:
@@ -577,6 +595,7 @@ def get_hash_code(*args):
         hash.update(arg)
         hash.update(program_name)
     return hash.hexdigest()[:10]
+
 
 def change_abc_tempo(abc_code, tempo_multiplier):
     ''' multiples all Q: fields in the abc code by the given multiplier and returns the modified abc code '''
@@ -611,6 +630,7 @@ def change_abc_tempo(abc_code, tempo_multiplier):
         abc_code = os.linesep.join(lines)
     return abc_code
 
+
 def add_table_of_contents_to_postscript_file(filepath):
     def to_ps_string(s):  # handle unicode strings
         if any(c for c in s if ord(c) > 127):
@@ -639,6 +659,7 @@ def add_table_of_contents_to_postscript_file(filepath):
             new_lines.append('[ /Action /GoTo /Dest /NamedDest%s /Title %s /OUT pdfmark' % (tune_index, ps_title))
             new_tune_state = False  # now this tune has been handled, wait for next one....
     codecs.open(filepath, 'wb', 'utf-8').write(os.linesep.join(new_lines))
+
 
 def sort_abc_tunes(abc_code, sort_fields, keep_free_text=True):
     lines = text_to_lines(abc_code)
@@ -1628,6 +1649,7 @@ class MusicPrintout(wx.Printout):
             renderer.destroy()
         return True
 
+
 class MusicUpdateDoneEvent(wx.PyCommandEvent):
     def __init__(self, eid, value=None):
         wx.PyCommandEvent.__init__(self, myMUSICUPDATEDONE, eid)
@@ -1635,6 +1657,7 @@ class MusicUpdateDoneEvent(wx.PyCommandEvent):
 
     def GetValue(self):
         return self._value
+
 
 # 1.3.6 [SS] 2014-12-07 statusbar added
 # 1.3.6.2 [SS] 2015-03-02 statusbar removed
@@ -1666,7 +1689,8 @@ class MusicUpdateThread(threading.Thread):
                     abc_tune = AbcTune(abc_code)
                     file_name = os.path.abspath(os.path.join(self.cache_dir, 'temp-%s-.svg' % abc_tune.tune_id))
                     # file_name = generate_temp_file_name(self.cache_dir, '-.svg', replace_ending='-001.svg')
-                    svg_files, error = abc_to_svg(abc_code, self.cache_dir, self.settings, target_file_name=file_name)
+                    svg_files, error = abc_to_svg(abc_code, self.cache_dir, self.settings,
+                                                  target_file_name=file_name)
             except Abcm2psException as e:
                 # if abcm2ps crashes, then wait at least 10 seconds until next invocation
                 svg_files, error = [], unicode(e)
@@ -1769,7 +1793,8 @@ class MidiThread(threading.Thread):
 
 
 class RecordThread(threading.Thread):
-    def __init__(self, notify_window, midi_in_device_ID, midi_out_device_ID=None, metre_1=3, metre_2=4, bpm=70):
+    def __init__(self, notify_window, midi_in_device_ID, midi_out_device_ID=None, metre_1=3,
+                 metre_2=4, bpm=70):
         global gmidi_in
         threading.Thread.__init__(self)
         self._notify_window = notify_window
@@ -1778,10 +1803,12 @@ class RecordThread(threading.Thread):
         self.metre_1 = metre_1
         self.metre_2 = metre_2
         self.midi_in = pypm.Input(midi_in_device_ID)
+
         if midi_out_device_ID is None:
             self.midi_out = None
         else:
             self.midi_out = pypm.Output(midi_out_device_ID, 0)
+
         gmidi_in.append(self.midi_in)
         gmidi_in.append(self.midi_out)
         self.notes = []
@@ -3062,7 +3089,8 @@ class MyAbcm2psPage(wx.Panel):
         #print "right click"
         #if evt.ControlDown():
             #print "control down"
-        result = wx.MessageBox(_("This will remove the selections in the combobox."), _("Proceed?"), wx.ICON_QUESTION | wx.YES | wx.NO)
+        result = wx.MessageBox(_("This will remove the selections in the combobox."),
+                               _("Proceed?"), wx.ICON_QUESTION | wx.YES | wx.NO)
         #print self.formatf.GetItems()
         if result == wx.YES:
             #self.formatf.Clear()
@@ -3077,9 +3105,12 @@ class MyAbcm2psPage(wx.Panel):
         path = self.settings.get('abcm2ps_format_path', '')
         if not path:
             path = self.settings.get('previous_abcm2ps_format_path', '')
+
         default_dir, default_file = os.path.split(path)
-        dlg = wx.FileDialog(
-                self, message=_("Find PostScript format file"), defaultFile=default_file, defaultDir=default_dir, style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR )
+        dlg = wx.FileDialog(self, message=_("Find PostScript format file"),
+                            defaultFile=default_file, defaultDir=default_dir,
+                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR )
+
         try:
             if dlg.ShowModal() == wx.ID_OK:
                 path = dlg.GetPath()
@@ -3265,12 +3296,13 @@ class MidiOptionsFrame(wx.Dialog):
         self.SetBackgroundColour(wx.Colour(245, 244, 235))
         border = 10
         sizer = wx.GridBagSizer(5, 5)
-        sizer.Add(wx.StaticText(self, -1, u'K: ' + _('Key signature')), wx.GBPosition(0, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(wx.StaticText(self, -1, u'M: ' + _('Metre')), wx.GBPosition(1, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(wx.StaticText(self, -1, u'L: ' + _('Default note length')), wx.GBPosition(2, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(wx.StaticText(self, -1, u'T: ' + _('Title')), wx.GBPosition(3, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(wx.StaticText(self, -1, _('Bars per line')), wx.GBPosition(4, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(wx.StaticText(self, -1, _('Numbers of notes in anacrusis')), wx.GBPosition(5, 0), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
+        flags = wx.EXPAND | wx.LEFT | wx.RIGHT
+        sizer.Add(wx.StaticText(self, -1, u'K: ' + _('Key signature')), wx.GBPosition(0, 0), flag=flags, border=border)
+        sizer.Add(wx.StaticText(self, -1, u'M: ' + _('Metre')), wx.GBPosition(1, 0), flag=flags, border=border)
+        sizer.Add(wx.StaticText(self, -1, u'L: ' + _('Default note length')), wx.GBPosition(2, 0), flag=flags, border=border)
+        sizer.Add(wx.StaticText(self, -1, u'T: ' + _('Title')), wx.GBPosition(3, 0), flag=flags, border=border)
+        sizer.Add(wx.StaticText(self, -1, _('Bars per line')), wx.GBPosition(4, 0), flag=flags, border=border)
+        sizer.Add(wx.StaticText(self, -1, _('Numbers of notes in anacrusis')), wx.GBPosition(5, 0), flag=flags, border=border)
 
         self.key = wx.TextCtrl(self, -1, size=(150, 22))
         self.metre = wx.TextCtrl(self, -1, size=(150, 22))
@@ -3290,18 +3322,18 @@ class MidiOptionsFrame(wx.Dialog):
         # 1.3.6.1 [JWdJ] 2015-01-30 Swapped next two lines so OK-button comes first (OK Cancel)
         box.Add(self.ok, wx.ID_OK, flag=wx.ALIGN_RIGHT)
         box.Add(self.cancel, wx.ID_CANCEL, flag=wx.ALIGN_RIGHT)
-        sizer.Add(self.key,                     wx.GBPosition(0, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.metre,                   wx.GBPosition(1, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.default_len,             wx.GBPosition(2, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.title,                   wx.GBPosition(3, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.bpl,                     wx.GBPosition(4, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.num_notes_in_anacrusis,  wx.GBPosition(5, 1), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.triplet_detection,       wx.GBPosition(6, 0), (1, 2), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.broken_rythm_detection,  wx.GBPosition(7, 0), (1, 2), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.slur_triplets,           wx.GBPosition(8, 0), (1, 2), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.slur_8ths,               wx.GBPosition(9, 0), (1, 2), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(self.slur_16ths,              wx.GBPosition(10,0), (1, 2), flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=border)
-        sizer.Add(box,                          wx.GBPosition(11,0), (1, 2), flag=0 | wx.LEFT | wx.RIGHT | wx.ALIGN_RIGHT, border=border)
+        sizer.Add(self.key, wx.GBPosition(0, 1), flag=flags, border=border)
+        sizer.Add(self.metre, wx.GBPosition(1, 1), flag=flags, border=border)
+        sizer.Add(self.default_len, wx.GBPosition(2, 1), flag=flags, border=border)
+        sizer.Add(self.title, wx.GBPosition(3, 1), flag=flags, border=border)
+        sizer.Add(self.bpl, wx.GBPosition(4, 1), flag=flags, border=border)
+        sizer.Add(self.num_notes_in_anacrusis, wx.GBPosition(5, 1), flag=flags, border=border)
+        sizer.Add(self.triplet_detection, wx.GBPosition(6, 0), (1, 2), flag=flags, border=border)
+        sizer.Add(self.broken_rythm_detection, wx.GBPosition(7, 0), (1, 2), flag=flags, border=border)
+        sizer.Add(self.slur_triplets, wx.GBPosition(8, 0), (1, 2), flag=flags, border=border)
+        sizer.Add(self.slur_8ths, wx.GBPosition(9, 0), (1, 2), flag=flags, border=border)
+        sizer.Add(self.slur_16ths, wx.GBPosition(10,0), (1, 2), flag=flags, border=border)
+        sizer.Add(box, wx.GBPosition(11,0), (1, 2), flag=flags, border=border)
 
         self.triplet_detection.SetValue(True)
         self.broken_rythm_detection.SetValue(True)
@@ -3466,8 +3498,8 @@ class MySearchFrame(wx.Frame):
         self.count = 0
 
         mainsizer = wx.BoxSizer(wx.VERTICAL)
-        sizer1   = wx.GridBagSizer(vgap=8,hgap=8)
-        sizer2   = wx.BoxSizer(wx.VERTICAL)
+        sizer1 = wx.GridBagSizer(vgap=8,hgap=8)
+        sizer2 = wx.BoxSizer(wx.VERTICAL)
         sizer1.Add(searchfold,(1,1))
         sizer1.Add(self.searchfoldtxt,(1,2))
         sizer1.Add(self.browsebut,(1,3))
@@ -3596,6 +3628,7 @@ class MySearchFrame(wx.Frame):
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, ID, app_dir, settings):
+        global execmessages
         wx.Frame.__init__(self, parent, ID, '%s - %s %s' % (program_name, _('Untitled'), 1),
                          wx.DefaultPosition, wx.Size(900, 850))
         #_icon = wx.EmptyIcon()
@@ -3605,7 +3638,6 @@ class MainFrame(wx.Frame):
             exeName = win32api.GetModuleFileName(win32api.GetModuleHandle(None))
             icon = wx.Icon(exeName + ";0", wx.BITMAP_TYPE_ICO)
             self.SetIcon(icon)
-        global execmessages, visible_abc_code
         self.settings = settings
         self.current_svg_tune = None # 1.3.6.2 [JWdJ] 2015-02
         self.svg_tunes = AbcTunes()
@@ -3654,13 +3686,15 @@ class MainFrame(wx.Frame):
         self.setup_toolbar()
         self.mc = None
         self.load_settings()
-        soundfont_path = settings.get('soundfont_path', None)
+        soundfont_path = self.settings.get('soundfont_path', None)
+
         if soundfont_path and os.path.exists(soundfont_path) and wx.Platform != "__WXMAC__":
             try:
-                self.mc = FluidSynthPlayer(soundfont_path)
+                self.mc = FluidSynthMidiPlayer(soundfont_path)
             except Exception as e:
                 error_msg = ''.join(traceback.format_exception(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])) + os.linesep + os.linesep.join(errors)
                 self.mc = None
+
         if self.mc is None:
             try:
                 backend = None
@@ -3671,9 +3705,13 @@ class MainFrame(wx.Frame):
                         backend = wx.media.MEDIABACKEND_DIRECTSHOW
                     else:
                         backend = wx.media.MEDIABACKEND_WMP10
+                else:
+                    raise NotImplementedError
+
                 self.mc = WxMediaPlayer(self, backend)
             except NotImplementedError:
-              self.mc = DummyMidiPlayer()  # if media player not supported on this platform
+                # if media player not supported on this platform
+                self.mc = DummyMidiPlayer()
 
         self.mc.OnAfterLoad += self.OnMediaLoaded
         self.mc.OnAfterStop += self.OnAfterStop
@@ -4140,7 +4178,8 @@ class MainFrame(wx.Frame):
             evt.Skip()
 
     def play(self):
-        if self.settings['follow_score'] and self.current_page_index != 0:
+        print("**** MainFrame.play() ++++")
+        if self.settings.get('follow_score') and self.current_page_index != 0:
             self.current_page_index = 0
             self.UpdateMusicPane()
         wx.CallAfter(self.mc.Play)
@@ -4217,6 +4256,8 @@ class MainFrame(wx.Frame):
                 # 1.3.6.3 [JWDJ] 2015-3 It seems mc.Play() triggers the OnMediaLoaded event
                 # self.OnMediaLoaded(None)
                 self.mc.Play() # does not start playing but triggers OnMediaLoaded event
+            else:
+                wx.CallAfter(self.play)
         else:
             wx.MessageBox(_("Unable to load %s: Unsupported format?") % path,
                           _("Error"), wx.ICON_ERROR | wx.OK)
@@ -6871,9 +6912,11 @@ class MainFrame(wx.Frame):
     #     self.play_end_offset = end or 9999999999999
 
     def PlayMidi(self, remove_repeats=False):
+        print("PlayMidi event handler triggered.")
         global execmessages # 1.3.6 [SS] 2014-11-11
         tune, abc = self.GetAbcToPlay()
         if not tune:
+            print("PlayMidi failed generating tune: %r", tune)
             return
 
         execmessages = u''
@@ -6884,7 +6927,8 @@ class MainFrame(wx.Frame):
         tempo_multiplier = self.get_tempo_multiplier()
 
         # 1.3.6 [SS] 2014-11-15 2014-12-08
-        self.current_midi_tune = AbcToMidi(abc, tune.header , self.cache_dir, self.settings, self.statusbar, tempo_multiplier)
+        self.current_midi_tune = AbcToMidi(abc, tune.header , self.cache_dir, self.settings,
+                                           self.statusbar, tempo_multiplier)
         self.applied_tempo_multiplier = tempo_multiplier
         # 1.3.7 [SS] 2016-01-05 in case abc2midi crashes
         midi_file = None
@@ -8278,7 +8322,6 @@ class MyApp(wx.App):
         except wx.PyAssertionError:
             self.settings['can_draw_sharps_and_flats'] = False
 
-
     def NewMainFrame(self):
         frame = MainFrame(None, 0, self.app_dir, self.settings)
         self._frames.append(frame)
@@ -8303,6 +8346,7 @@ class MyApp(wx.App):
         self.SetAppName('EasyABC')
         #wx.SystemOptions.SetOptionInt('msw.window.no-clip-children', 1)
         app_dir = self.app_dir = wx.StandardPaths.Get().GetUserLocalDataDir()
+        print("********** App dir:", self.app_dir)
         if not os.path.exists(app_dir):
             os.mkdir(app_dir)
         cache_dir = os.path.join(app_dir, 'cache')
@@ -8329,15 +8373,18 @@ class MyApp(wx.App):
             self.frame.load_or_import(path)
         return True
 
-app = MyApp(0)
 
-#import wx.lib.inspection
-#wx.lib.inspection.InspectionTool().Show()
+def main(args=None):
+    global application_running, current_locale
+    app = MyApp(0)
 
-app.MainLoop()
-application_running = False
-current_locale = None
-app = None
+    #import wx.lib.inspection
+    #wx.lib.inspection.InspectionTool().Show()
+
+    app.MainLoop()
+    application_running = False
+    current_locale = None
 
 
-
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]) or 0)

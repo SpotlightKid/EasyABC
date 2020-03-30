@@ -1,6 +1,11 @@
-import wx
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import sys
+
+import wx
+
+
 PY3 = sys.version_info.major > 2
 
 

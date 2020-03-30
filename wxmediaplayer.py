@@ -1,26 +1,36 @@
-from __future__ import unicode_literals
-import re
-import os
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import io
+import os
 import os.path
+import re
+import sys
+import time
+
 import wx
 import wx.media
-import time
-import sys
-PY3 = sys.version_info.major > 2
+
 from midiplayer import MidiPlayer
+
+
+PY3 = sys.version_info.major > 2
 
 
 class WxMediaPlayer(MidiPlayer):
     def __init__(self, parent_window, backend=None):
         super(WxMediaPlayer, self).__init__()
-        self.mc = wx.media.MediaCtrl(parent_window, szBackend=backend)
+        if backend is None:
+            self.mc = wx.media.MediaCtrl(parent_window)
+        else:
+            self.mc = wx.media.MediaCtrl(parent_window, szBackend=backend)
         self.mc.Hide()
         self.is_really_playing = False
         self.loop_midi_playback = False
 
         parent_window.Bind(wx.media.EVT_MEDIA_LOADED, self.OnMediaLoaded)
-        # Bind other event to be sure to act on the first one that occurs (evenif they should be almost at the same time)
+        # Bind other event to be sure to act on the first one that occurs
+        # (even if they should be almost at the same time)
         parent_window.Bind(wx.media.EVT_MEDIA_FINISHED, self.OnMediaFinished)
         parent_window.Bind(wx.media.EVT_MEDIA_STOP, self.OnMediaStop)
 
@@ -39,7 +49,8 @@ class WxMediaPlayer(MidiPlayer):
         # print('Stop')
         self.is_really_playing = False
         self.mc.Stop()
-        self.mc.Load('NONEXISTANT_FILE____.mid') # be sure the midi file is released 2014-10-25 [SS]
+        # be sure the midi file is released 2014-10-25 [SS]
+        self.mc.Load('NONEXISTANT_FILE____.mid')
 
     def Pause(self):
         self.mc.Pause()
@@ -62,7 +73,9 @@ class WxMediaPlayer(MidiPlayer):
 
     @PlaybackRate.setter
     def PlaybackRate(self, value):
-        if self.is_playing or wx.Platform != "__WXMAC__": # after setting playbackrate on Windows the self.mc.GetState() becomes MEDIASTATE_STOPPED
+        if self.is_playing or wx.Platform != "__WXMAC__":
+            # after setting playbackrate on Windows the self.mc.GetState() becomes
+            # MEDIASTATE_STOPPED
             self.mc.PlaybackRate = value
 
     @property
@@ -81,8 +94,7 @@ class WxMediaPlayer(MidiPlayer):
         self.OnAfterLoad.fire()
 
     def OnMediaStop(self, evt):
-        # print('Media stopped')
-        # if media is finished but playback as a loop was used relaunch the playback immediatly
+        # If media is finished but playback as a loop was used, relaunch the playback immediately
         # and prevent media of being stop (event is vetoed as explained in MediaCtrl documentation)
         if self.loop_midi_playback:
             self.last_playback_rate = self.mc.PlaybackRate
@@ -90,9 +102,9 @@ class WxMediaPlayer(MidiPlayer):
             wx.CallAfter(self.play_again)
 
     def OnMediaFinished(self, evt):
-        # print('Media finished')
-        # if media is finished but playback as a loop was used relaunch the playback immediatly
-        # (OnMediaStop should already have restarted it if required as event STOP arrive before FINISHED)
+        # If media is finished but playback as a loop was used, relaunch the playback immediately
+        # (OnMediaStop should already have restarted it if required as event STOP arrives before
+        # FINISHED)
         self.is_really_playing = False
         if self.loop_midi_playback:
             self.play_again()
@@ -110,7 +122,7 @@ class WxMediaPlayer(MidiPlayer):
             self.is_really_playing = True
 
     def set_playback_rate(self, playback_rate):
-        if self.mc and (self.is_playing or wx.Platform != "__WXMAC__"): # after setting playbackrate on Windows the self.mc.GetState() becomes MEDIASTATE_STOPPED
+        if self.mc and (self.is_playing or wx.Platform != "__WXMAC__"):
+            # after setting playbackrate on Windows the self.mc.GetState() becomes
+            # MEDIASTATE_STOPPED
             self.mc.PlaybackRate = playback_rate
-
-
